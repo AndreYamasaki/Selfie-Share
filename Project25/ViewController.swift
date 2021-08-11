@@ -59,15 +59,34 @@ class ViewController: UICollectionViewController, UINavigationControllerDelegate
             present(picker, animated: true)
     }
     
+    //Tell the delegate the user picked an image
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
         
         //if key in info has an UIImage, typecast it
         guard let image = info[.editedImage] as? UIImage else { return }
+        dismiss(animated: true)
 
-            dismiss(animated: true)
+        images.insert(image, at: 0)
+        collectionView.reloadData()
+        
+        // Check if we have an active session we can use.
+        guard let mcSession = mcSession else { return }
 
-            images.insert(image, at: 0)
-            collectionView.reloadData()
+        // Check if there are any peers[] to send to.
+        if mcSession.connectedPeers.count > 0 {
+            // Convert the new image to a Data object.
+            if let imageData = image.pngData() {
+                // Send it to all peers, ensuring it gets delivered.
+                do {
+                    try mcSession.send(imageData, toPeers: mcSession.connectedPeers, with: .reliable)
+                } catch {
+                    // Show an error message if there's a problem.
+                    let ac = UIAlertController(title: "Send error", message: error.localizedDescription, preferredStyle: .alert)
+                    ac.addAction(UIAlertAction(title: "OK", style: .default))
+                    present(ac, animated: true)
+                }
+            }
+        }
     }
     
     @objc func showConnectionPrompt() {
@@ -81,6 +100,7 @@ class ViewController: UICollectionViewController, UINavigationControllerDelegate
     
     func startHosting(action: UIAlertAction) {
         
+        //creates a session that people can join in
         guard let mcSession = mcSession else { return }
         mcAdvertisingAssistant = MCAdvertiserAssistant(serviceType: "hws-project25", discoveryInfo: nil, session: mcSession)
     }
@@ -92,6 +112,54 @@ class ViewController: UICollectionViewController, UINavigationControllerDelegate
         let mcBrowser = MCBrowserViewController(serviceType: "hws-project25", session: mcSession)
         mcBrowser.delegate = self
         present(mcBrowser, animated: true)
+    }
+    
+    func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {
+    }
+    
+    func session(_ session: MCSession, didStartReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, with progress: Progress) {
+    }
+    
+    func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?) {
+    }
+    
+    func browserViewControllerDidFinish(_ browserViewController: MCBrowserViewController) {
+        dismiss(animated: true)
+    }
+    
+    func browserViewControllerWasCancelled(_ browserViewController: MCBrowserViewController) {
+        dismiss(animated: true)
+    }
+    
+    func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
+        
+        //dealing with MCSessionState enum
+        switch state {
+        //the user is connected
+        case .connected:
+            print("Connected: \(peerID.displayName)")
+        //the user is connecting
+        case .connecting:
+            print("Connecting: \(peerID.displayName)")
+        //the user is no connected
+        case .notConnected:
+            print("Not Connected: \(peerID.displayName)")
+
+        @unknown default:
+            print("Unknown state received: \(peerID.displayName)")
+        }
+    }
+    
+    //Indicates that an NSData object has been received from a nearby peer.
+    func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
+        
+        DispatchQueue.main.async { [weak self] in
+            //put the image recieved at images array
+            if let image = UIImage(data: data) {
+                self?.images.insert(image, at: 0)
+                self?.collectionView.reloadData()
+            }
+        }
     }
 }
 
