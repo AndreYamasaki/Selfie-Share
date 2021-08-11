@@ -21,13 +21,16 @@ class ViewController: UICollectionViewController, UINavigationControllerDelegate
     //is used when creating a session, telling others that we exist and handling invitations
     var mcAdvertisingAssistant: MCAdvertiserAssistant?
     
+    //MARK: - viewDidLoad
     override func viewDidLoad() {
         super.viewDidLoad()
         
         title = "Selfie Share"
         
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .camera, target: self, action: #selector(importPicture))
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(showConnectionPrompt))
+        let connectionPrompt = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(showConnectionPrompt))
+        let showDevices = UIBarButtonItem(barButtonSystemItem: .search, target: self, action: #selector(showConnectedPeers))
+        navigationItem.leftBarButtonItems = [connectionPrompt, showDevices]
 
         mcSession = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .required)
         mcSession?.delegate = self
@@ -57,6 +60,27 @@ class ViewController: UICollectionViewController, UINavigationControllerDelegate
             picker.allowsEditing = true
             picker.delegate = self
             present(picker, animated: true)
+    }
+    
+    @objc func showConnectedPeers() {
+        
+        guard let mcSession = mcSession else { return }
+                
+                var peersList = [String]()
+                
+                for peer in mcSession.connectedPeers {
+                    peersList.append(peer.displayName)
+                }
+                
+                var message = peersList.joined(separator: "\n")
+                
+                if peersList.count == 0 {
+                    message = "No devices are connected."
+                }
+                
+                let ac = UIAlertController(title: "Peers connected", message: message, preferredStyle: .alert)
+                ac.addAction(UIAlertAction(title: "OK", style: .cancel, handler: nil))
+                present(ac, animated: true, completion: nil)
     }
     
     //Tell the delegate the user picked an image
@@ -103,6 +127,8 @@ class ViewController: UICollectionViewController, UINavigationControllerDelegate
         //creates a session that people can join in
         guard let mcSession = mcSession else { return }
         mcAdvertisingAssistant = MCAdvertiserAssistant(serviceType: "hws-project25", discoveryInfo: nil, session: mcSession)
+        //starts advertising the service
+        mcAdvertisingAssistant?.start()
     }
     
     func joinSession(action: UIAlertAction) {
@@ -114,6 +140,7 @@ class ViewController: UICollectionViewController, UINavigationControllerDelegate
         present(mcBrowser, animated: true)
     }
     
+    //MARK: - Delegates
     func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {
     }
     
@@ -144,6 +171,10 @@ class ViewController: UICollectionViewController, UINavigationControllerDelegate
         //the user is no connected
         case .notConnected:
             print("Not Connected: \(peerID.displayName)")
+//Challenge 1
+            let ac = UIAlertController(title: "\(peerID.displayName) has disconnected", message: nil, preferredStyle: .alert)
+                        ac.addAction(UIAlertAction(title: "OK", style: .cancel, handler: nil))
+                        present(ac, animated: true, completion: nil)
 
         @unknown default:
             print("Unknown state received: \(peerID.displayName)")
